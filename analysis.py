@@ -25,7 +25,7 @@ def main():
 
     df = label_innings_quality(df)
 
-    # Merge player names from the local SQLite DB so we can label plots
+    # Merge player names from the local SQLite DB
     import sqlite3
     conn = sqlite3.connect("ashes.db")
     players = pd.read_sql_query("SELECT player_id, player_name FROM players", conn)
@@ -146,3 +146,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
