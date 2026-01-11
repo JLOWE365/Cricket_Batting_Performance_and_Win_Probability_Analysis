@@ -13,9 +13,7 @@ from feature_engineering import (
 
 def main():
 
-    # -------------------------
     # Load and prepare data
-    # -------------------------
 
     df = load_batting_data()
     df = label_match_results(df)
@@ -24,12 +22,39 @@ def main():
     df = compute_quality_scores(df)
     df = label_innings_quality(df)
 
+
+    df = label_innings_quality(df)
+
+    # Merge player names from the local SQLite DB so we can label plots
+    import sqlite3
+    conn = sqlite3.connect("ashes.db")
+    players = pd.read_sql_query("SELECT player_id, player_name FROM players", conn)
+    conn.close()
+    # align dtypes for a safe merge
+    players["player_id"] = players["player_id"].astype(df["player_id"].dtype)
+    df = df.merge(players, on="player_id", how="left")
+
+    plt.show()
+
+    # Plot: Top 5 innings (overall) with player names
+
+    top5 = df.sort_values("quality_z", ascending=False).head(5).copy()
+    top5["label"] = top5["player_name"].fillna(top5["player_id"].astype(str)) + " — " + top5["runs"].astype(str) + " runs"
+
+    plt.figure(figsize=(8,5))
+    plt.barh(top5["label"][::-1], top5["quality_z"][::-1], color="tab:blue")
+    plt.xlabel("Quality (z-score)")
+    plt.title("Top 5 Innings by Quality")
+    for i, v in enumerate(top5["quality_z"][::-1]):
+        plt.text(v + 0.02, i, f"{v:.2f}", va="center")
+    plt.tight_layout()
+    plt.show()
+
     # Remove draws for binary win modelling
     df = df[df["result"] != "draw"]
 
-    # -------------------------
+  
     # Poor innings per team
-    # -------------------------
 
     team_poor = (
         df.groupby(["match_id", "batting_team_id"])
@@ -44,9 +69,7 @@ def main():
 
     team_poor = team_poor.merge(winner_map, on="match_id", how="left")
 
-    # -------------------------
     # Pivot to match-level
-    # -------------------------
 
     pivot = team_poor.pivot(
         index="match_id",
@@ -77,9 +100,7 @@ def main():
     pivot["poor_gap"] = pivot["loser_poor_count"] - pivot["winner_poor_count"]
 
 
-    # -------------------------
     # Symmetric modelling data
-    # -------------------------
 
     winners = pivot[
     pivot["winner_team_id"].notna() &
@@ -95,9 +116,7 @@ def main():
 
     model_df = pd.concat([winners, losers], ignore_index=True)
 
-    # -------------------------
     # Logistic regression
-    # -------------------------
 
     X = sm.add_constant(model_df[["poor_gap"]])
     y = model_df["win"]
@@ -109,9 +128,7 @@ def main():
     model_df["prob_win"] = logit.predict(X)
 
 
-    # -------------------------
     # Visualisation
-    # -------------------------
 
     (
         model_df
